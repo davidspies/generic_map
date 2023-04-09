@@ -21,19 +21,13 @@ pub type HashedMaxHeap<K, V> = HashedHeap<K, V, Max<K>>;
 pub type HashedMinHeap<K, V> = HashedHeap<K, V, Min<K>>;
 
 impl<K, V> HashedMaxHeap<K, V> {
-    pub fn max(&self) -> Option<(&K, &V)>
-    where
-        K: Eq + Hash,
-    {
+    pub fn max_key(&self) -> Option<&K> {
         self.peek()
     }
 }
 
 impl<K, V> HashedMinHeap<K, V> {
-    pub fn min(&self) -> Option<(&K, &V)>
-    where
-        K: Eq + Hash,
-    {
+    pub fn min_key(&self) -> Option<&K> {
         self.peek()
     }
 }
@@ -142,14 +136,8 @@ impl<K, V, C> HashedHeap<K, V, C> {
         self.map.iter_mut().map(|(k, (v, _))| (k, v))
     }
 
-    fn peek(&self) -> Option<(&K, &V)>
-    where
-        K: Eq + Hash,
-    {
-        self.heap.peek().map(|k| {
-            let (v, _) = self.map.get(k).unwrap();
-            (k, v)
-        })
+    fn peek(&self) -> Option<&K> {
+        self.heap.peek()
     }
 }
 

@@ -16,6 +16,11 @@ pub struct RolloverMap<K, V, const N: usize = 1, M = HashMap<K, V>> {
     heap: M,
 }
 
+pub type RolloverHashedMaxHeap<K, V, const N: usize> =
+    RolloverMap<K, V, N, crate::hashed_heap::HashedMaxHeap<K, V>>;
+pub type RolloverHashedMinHeap<K, V, const N: usize> =
+    RolloverMap<K, V, N, crate::hashed_heap::HashedMinHeap<K, V>>;
+
 impl<K, V, const N: usize, M: Default> Default for RolloverMap<K, V, N, M>
 where
     [V; N]: Default,
@@ -692,5 +697,17 @@ impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: OccupiedEntry<'a
         V: Clear,
     {
         self.remove_clearable()
+    }
+}
+
+impl<K: Ord, V, const N: usize> RolloverHashedMaxHeap<K, V, N> {
+    pub fn max(&self) -> Option<&K> {
+        self.heap.max_key().or_else(|| self.stack_keys.iter().max())
+    }
+}
+
+impl<K: Ord, V, const N: usize> RolloverHashedMinHeap<K, V, N> {
+    pub fn min(&self) -> Option<&K> {
+        self.heap.min_key().or_else(|| self.stack_keys.iter().min())
     }
 }
