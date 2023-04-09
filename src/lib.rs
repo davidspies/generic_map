@@ -1,8 +1,10 @@
+pub use self::hashed_heap::{HashedMaxHeap, HashedMinHeap};
 pub use self::rollover_map::RolloverMap;
 
 mod btree_map_impl;
 mod hash_map_impl;
 
+pub mod hashed_heap;
 pub mod rollover_map;
 
 pub trait GenericMap<K, V>: Default + Extend<(K, V)> + IntoIterator<Item = (K, V)> {
