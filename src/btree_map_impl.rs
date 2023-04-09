@@ -26,10 +26,6 @@ impl<K: Ord, V> GenericMap<K, V> for BTreeMap<K, V> {
     where
         Self: 'a;
 
-    fn new() -> Self {
-        Self::new()
-    }
-
     fn len(&self) -> usize {
         self.len()
     }

@@ -2,6 +2,8 @@ use std::collections::{hash_map, HashMap};
 use std::hash::Hash;
 use std::{iter, mem};
 
+use crate::clear::Clear;
+use crate::drain::Drain;
 use crate::{GenericMap, OccupiedEntry, VacantEntry};
 
 use self::comparator::{Comparator, Max, Min};
@@ -157,6 +159,23 @@ impl<K, V, C: Default> Default for HashedHeap<K, V, C> {
     }
 }
 
+impl<K, V, C> Clear for HashedHeap<K, V, C> {
+    fn clear(&mut self) {
+        self.map.clear();
+        self.heap.clear();
+    }
+}
+
+impl<K, V, C> Drain for HashedHeap<K, V, C> {
+    type Output<'a> = DrainIter<'a, K, V>
+    where
+        Self: 'a;
+
+    fn drain(&mut self) -> Self::Output<'_> {
+        self.drain()
+    }
+}
+
 impl<K, V, C> IntoIterator for HashedHeap<K, V, C> {
     type Item = (K, V);
     type IntoIter = iter::Map<hash_map::IntoIter<K, (V, Index)>, fn((K, (V, Index))) -> (K, V)>;
@@ -209,10 +228,6 @@ impl<K: Eq + Hash + Clone, V, C: Comparator<K>> GenericMap<K, V> for HashedHeap<
     type OccupEntry<'a> = OccupEntry<'a, K, V, C>
     where
         Self: 'a;
-
-    fn new() -> Self {
-        Self::new()
-    }
 
     fn len(&self) -> usize {
         self.len()

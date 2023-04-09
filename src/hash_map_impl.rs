@@ -1,18 +1,20 @@
 use std::collections::{hash_map, HashMap};
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
 use crate::{Entry, GenericMap, OccupiedEntry, VacantEntry};
 
-impl<K: Eq + Hash, V> GenericMap<K, V> for HashMap<K, V> {
+impl<K: Eq + Hash, V, S: BuildHasher + Default> GenericMap<K, V> for HashMap<K, V, S> {
     type Iter<'a> = hash_map::Iter<'a, K, V>
     where
         K: 'a,
-        V: 'a;
+        V: 'a,
+        S: 'a;
 
     type IterMut<'a> = hash_map::IterMut<'a, K, V>
     where
         K: 'a,
-        V: 'a;
+        V: 'a,
+        S: 'a;
 
     type DrainIter<'a> = hash_map::Drain<'a, K, V>
     where
@@ -25,10 +27,6 @@ impl<K: Eq + Hash, V> GenericMap<K, V> for HashMap<K, V> {
     type OccupEntry<'a> = hash_map::OccupiedEntry<'a, K, V>
     where
         Self: 'a;
-
-    fn new() -> Self {
-        Self::new()
-    }
 
     fn len(&self) -> usize {
         self.len()

@@ -2,7 +2,9 @@ use std::{array, collections::HashMap, iter, mem, slice};
 
 use arrayvec::ArrayVec;
 
-use crate::{Entry, GenericMap, OccupiedEntry, VacantEntry};
+use crate::{
+    clear::Clear, drain::Drain, DrainOrRemove, Entry, GenericMap, OccupiedEntry, VacantEntry,
+};
 
 use self::take_iter::TakeIter;
 
@@ -24,6 +26,27 @@ where
             stack_values: Default::default(),
             heap: Default::default(),
         }
+    }
+}
+
+impl<K, V: Clear, const N: usize, M: Clear> Clear for RolloverMap<K, V, N, M> {
+    fn clear(&mut self) {
+        let nkeys = self.stack_keys.len();
+        self.stack_keys.clear();
+        for v in self.stack_values[..nkeys].iter_mut() {
+            v.clear();
+        }
+        self.heap.clear();
+    }
+}
+
+impl<K, V: Default, const N: usize, M: GenericMap<K, V>> Drain for RolloverMap<K, V, N, M> {
+    type Output<'a> = DrainIter<'a, K, V, N, M::DrainIter<'a>>
+    where
+        Self: 'a;
+
+    fn drain(&mut self) -> Self::Output<'_> {
+        RolloverMap::drain(self)
     }
 }
 
@@ -290,6 +313,59 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
             .zip(self.stack_values.iter_mut())
             .chain(self.heap.iter_mut())
     }
+
+    fn remove_clearable(&mut self, key: &K) -> bool
+    where
+        K: PartialEq,
+        V: Clear,
+        M: GenericMap<K, V>,
+    {
+        for (i, (k, v)) in self
+            .stack_keys
+            .iter()
+            .zip(self.stack_values.iter_mut())
+            .enumerate()
+        {
+            if k == key {
+                self.stack_keys.remove(i);
+                v.clear();
+                self.stack_values[i..].rotate_left(1);
+                return true;
+            }
+        }
+        let result = self.heap.remove(key).is_some();
+        if self.heap.len() == N {
+            for ((k, v), val) in self.heap.drain().zip(self.stack_values.iter_mut()) {
+                self.stack_keys.push(k);
+                *val = v;
+            }
+        }
+        result
+    }
+
+    pub fn drain_or_remove(&mut self, key: &K) -> Option<DrainOrRemove<V::Output<'_>, V>>
+    where
+        K: Eq,
+        V: Drain,
+        M: GenericMap<K, V>,
+    {
+        for (i, k) in self.stack_keys.iter().enumerate() {
+            if k == key {
+                self.stack_keys.remove(i);
+                self.stack_values[i..].rotate_left(1);
+                let result = self.stack_values[N - 1].drain();
+                return Some(DrainOrRemove::Drained(result));
+            }
+        }
+        let result = self.heap.remove(key);
+        if self.heap.len() == N {
+            for ((k, v), val) in self.heap.drain().zip(self.stack_values.iter_mut()) {
+                self.stack_keys.push(k);
+                *val = v;
+            }
+        }
+        result.map(DrainOrRemove::Removed)
+    }
 }
 
 impl<K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> GenericMap<K, V>
@@ -316,10 +392,6 @@ where
     type OccupEntry<'a> = OccupEntry<'a, K, V, N, M, M::OccupEntry<'a>>
     where
         Self: 'a;
-
-    fn new() -> Self {
-        Self::new()
-    }
 
     fn len(&self) -> usize {
         self.len()
@@ -364,6 +436,20 @@ where
     fn iter_mut(&mut self) -> Self::IterMut<'_> {
         self.iter_mut()
     }
+
+    fn remove_clearable(&mut self, key: &K) -> bool
+    where
+        V: Clear,
+    {
+        self.remove_clearable(key)
+    }
+
+    fn drain_or_remove(&mut self, key: &K) -> Option<DrainOrRemove<V::Output<'_>, V>>
+    where
+        V: Drain,
+    {
+        self.drain_or_remove(key)
+    }
 }
 
 pub enum VacEntry<'a, K, V, const N: usize, M, E> {
@@ -387,7 +473,7 @@ impl<'a, K, V, const N: usize, M, E> VacEntry<'a, K, V, N, M, E> {
         }
     }
 
-    pub  fn insert(self, value: V) -> &'a mut V
+    pub fn insert(self, value: V) -> &'a mut V
     where
         V: Default,
         M: GenericMap<K, V>,
