@@ -45,6 +45,8 @@ impl<K, V, const N: usize, M: IntoIterator<Item = (K, V)>> IntoIterator
 pub type Iter<'a, K, V, I> = iter::Chain<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>, I>;
 pub type IterMut<'a, K, V, I> =
     iter::Chain<iter::Zip<slice::Iter<'a, K>, slice::IterMut<'a, V>>, I>;
+pub type DrainIter<'a, K, V, const N: usize, I> =
+    iter::Chain<iter::Zip<arrayvec::Drain<'a, K, N>, TakeIter<'a, V>>, I>;
 
 impl<'a, K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> IntoIterator
     for &'a RolloverMap<K, V, N, M>
@@ -96,54 +98,42 @@ impl<K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> Extend<(K, V)>
     }
 }
 
-impl<K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> GenericMap<K, V>
-    for RolloverMap<K, V, N, M>
-where
-    [V; N]: Default,
-{
-    type Iter<'a> = Iter<'a, K, V, M::Iter<'a>>
+impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
+    pub fn new() -> Self
     where
-        Self: 'a;
-
-    type IterMut<'a> = iter::Chain<
-        iter::Zip<slice::Iter<'a, K>, slice::IterMut<'a, V>>,
-        M::IterMut<'a>,
-    >
-    where
-        Self: 'a;
-
-    type DrainIter<'a> = iter::Chain<
-        iter::Zip<arrayvec::Drain<'a, K, N>, TakeIter<'a, V>>,
-        M::DrainIter<'a>,
-    >
-    where
-        Self: 'a;
-
-    type VacEntry<'a> = VacEntry<'a, K, V, N, M, M::VacEntry<'a>>
-    where
-        Self: 'a;
-
-    type OccupEntry<'a> = OccupEntry<'a, K, V, N, M, M::OccupEntry<'a>>
-    where
-        Self: 'a;
-
-    fn new() -> Self {
+        M: Default,
+        [V; N]: Default,
+    {
         Self::default()
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize
+    where
+        M: GenericMap<K, V>,
+    {
         self.stack_keys.len() + self.heap.len()
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool
+    where
+        M: GenericMap<K, V>,
+    {
         self.stack_keys.is_empty() && self.heap.is_empty()
     }
 
-    fn contains_key(&self, key: &K) -> bool {
+    pub fn contains_key(&self, key: &K) -> bool
+    where
+        K: PartialEq,
+        M: GenericMap<K, V>,
+    {
         self.stack_keys.contains(key) || self.heap.contains_key(key)
     }
 
-    fn get(&self, key: &K) -> Option<&V> {
+    pub fn get(&self, key: &K) -> Option<&V>
+    where
+        K: PartialEq,
+        M: GenericMap<K, V>,
+    {
         for (k, v) in self.stack_keys.iter().zip(self.stack_values.iter()) {
             if k == key {
                 return Some(v);
@@ -152,7 +142,11 @@ where
         self.heap.get(key)
     }
 
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V>
+    where
+        K: PartialEq,
+        M: GenericMap<K, V>,
+    {
         for (k, v) in self.stack_keys.iter().zip(self.stack_values.iter_mut()) {
             if k == key {
                 return Some(v);
@@ -161,7 +155,12 @@ where
         self.heap.get_mut(key)
     }
 
-    fn insert(&mut self, key: K, value: V) -> Option<V> {
+    pub fn insert(&mut self, key: K, value: V) -> Option<V>
+    where
+        K: PartialEq,
+        V: Default,
+        M: GenericMap<K, V>,
+    {
         for (k, v) in self.stack_keys.iter_mut().zip(self.stack_values.iter_mut()) {
             if k == &key {
                 return Some(mem::replace(v, value));
@@ -184,7 +183,12 @@ where
         self.heap.insert(key, value)
     }
 
-    fn remove(&mut self, key: &K) -> Option<V> {
+    pub fn remove(&mut self, key: &K) -> Option<V>
+    where
+        K: PartialEq,
+        V: Default,
+        M: GenericMap<K, V>,
+    {
         for (i, (k, v)) in self
             .stack_keys
             .iter()
@@ -208,7 +212,11 @@ where
         result
     }
 
-    fn drain(&mut self) -> Self::DrainIter<'_> {
+    pub fn drain(&mut self) -> DrainIter<'_, K, V, N, M::DrainIter<'_>>
+    where
+        M: GenericMap<K, V>,
+        V: Default,
+    {
         let nelems = self.stack_keys.len();
         self.stack_keys
             .drain(..)
@@ -216,7 +224,17 @@ where
             .chain(self.heap.drain())
     }
 
-    fn entry(&mut self, key: K) -> Entry<Self::VacEntry<'_>, Self::OccupEntry<'_>> {
+    pub fn entry(
+        &mut self,
+        key: K,
+    ) -> Entry<
+        VacEntry<'_, K, V, N, M, M::VacEntry<'_>>,
+        OccupEntry<'_, K, V, N, M, M::OccupEntry<'_>>,
+    >
+    where
+        K: PartialEq,
+        M: GenericMap<K, V>,
+    {
         for (i, (k, v)) in self
             .stack_keys
             .iter()
@@ -253,18 +271,98 @@ where
         }
     }
 
-    fn iter(&self) -> Self::Iter<'_> {
+    pub fn iter(&self) -> Iter<'_, K, V, M::Iter<'_>>
+    where
+        M: GenericMap<K, V>,
+    {
         self.stack_keys
             .iter()
             .zip(self.stack_values.iter())
             .chain(self.heap.iter())
     }
 
-    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, V, M::IterMut<'_>>
+    where
+        M: GenericMap<K, V>,
+    {
         self.stack_keys
             .iter()
             .zip(self.stack_values.iter_mut())
             .chain(self.heap.iter_mut())
+    }
+}
+
+impl<K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> GenericMap<K, V>
+    for RolloverMap<K, V, N, M>
+where
+    [V; N]: Default,
+{
+    type Iter<'a> = Iter<'a, K, V, M::Iter<'a>>
+    where
+        Self: 'a;
+
+    type IterMut<'a> = IterMut<'a, K, V, M::IterMut<'a>>
+    where
+        Self: 'a;
+
+    type DrainIter<'a> = DrainIter<'a, K, V, N, M::DrainIter<'a>>
+    where
+        Self: 'a;
+
+    type VacEntry<'a> = VacEntry<'a, K, V, N, M, M::VacEntry<'a>>
+    where
+        Self: 'a;
+
+    type OccupEntry<'a> = OccupEntry<'a, K, V, N, M, M::OccupEntry<'a>>
+    where
+        Self: 'a;
+
+    fn new() -> Self {
+        Self::new()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
+    fn contains_key(&self, key: &K) -> bool {
+        self.contains_key(key)
+    }
+
+    fn get(&self, key: &K) -> Option<&V> {
+        self.get(key)
+    }
+
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.get_mut(key)
+    }
+
+    fn insert(&mut self, key: K, value: V) -> Option<V> {
+        self.insert(key, value)
+    }
+
+    fn remove(&mut self, key: &K) -> Option<V> {
+        self.remove(key)
+    }
+
+    fn drain(&mut self) -> Self::DrainIter<'_> {
+        self.drain()
+    }
+
+    fn entry(&mut self, key: K) -> Entry<Self::VacEntry<'_>, Self::OccupEntry<'_>> {
+        self.entry(key)
+    }
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.iter()
+    }
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        self.iter_mut()
     }
 }
 
@@ -278,17 +376,23 @@ pub enum VacEntry<'a, K, V, const N: usize, M, E> {
     Heap(E),
 }
 
-impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: VacantEntry<'a, K, V>>
-    VacantEntry<'a, K, V> for VacEntry<'a, K, V, N, M, E>
-{
-    fn key(&self) -> &K {
+impl<'a, K, V, const N: usize, M, E> VacEntry<'a, K, V, N, M, E> {
+    pub fn key(&self) -> &K
+    where
+        E: VacantEntry<'a, K, V>,
+    {
         match self {
             VacEntry::Stack { key, .. } => key,
             VacEntry::Heap(entry) => entry.key(),
         }
     }
 
-    fn insert(self, value: V) -> &'a mut V {
+    pub  fn insert(self, value: V) -> &'a mut V
+    where
+        V: Default,
+        M: GenericMap<K, V>,
+        E: VacantEntry<'a, K, V>,
+    {
         match self {
             VacEntry::Stack {
                 key,
@@ -318,6 +422,18 @@ impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: VacantEntry<'a, 
     }
 }
 
+impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: VacantEntry<'a, K, V>>
+    VacantEntry<'a, K, V> for VacEntry<'a, K, V, N, M, E>
+{
+    fn key(&self) -> &K {
+        self.key()
+    }
+
+    fn insert(self, value: V) -> &'a mut V {
+        self.insert(value)
+    }
+}
+
 pub enum OccupEntry<'a, K, V, const N: usize, M, E> {
     Stack {
         index: usize,
@@ -334,38 +450,53 @@ pub enum OccupEntry<'a, K, V, const N: usize, M, E> {
     },
 }
 
-impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: OccupiedEntry<'a, K, V>>
-    OccupiedEntry<'a, K, V> for OccupEntry<'a, K, V, N, M, E>
-{
-    fn key(&self) -> &K {
+impl<'a, K, V, const N: usize, M, E> OccupEntry<'a, K, V, N, M, E> {
+    pub fn key(&self) -> &K
+    where
+        E: OccupiedEntry<'a, K, V>,
+    {
         match self {
             OccupEntry::Stack { key, .. } => unsafe { &**key },
             OccupEntry::Heap { entry, .. } => entry.key(),
         }
     }
 
-    fn get(&self) -> &V {
+    pub fn get(&self) -> &V
+    where
+        E: OccupiedEntry<'a, K, V>,
+    {
         match self {
             OccupEntry::Stack { value, .. } => unsafe { &**value },
             OccupEntry::Heap { entry, .. } => entry.get(),
         }
     }
 
-    fn get_mut(&mut self) -> &mut V {
+    pub fn get_mut(&mut self) -> &mut V
+    where
+        E: OccupiedEntry<'a, K, V>,
+    {
         match self {
             OccupEntry::Stack { value, .. } => unsafe { &mut **value },
             OccupEntry::Heap { entry, .. } => entry.get_mut(),
         }
     }
 
-    fn insert(&mut self, new_value: V) -> V {
+    pub fn insert(&mut self, new_value: V) -> V
+    where
+        E: OccupiedEntry<'a, K, V>,
+    {
         match self {
             OccupEntry::Stack { value, .. } => unsafe { mem::replace(&mut **value, new_value) },
             OccupEntry::Heap { entry, .. } => entry.insert(new_value),
         }
     }
 
-    fn remove(self) -> V {
+    pub fn remove(self) -> V
+    where
+        V: Default,
+        M: GenericMap<K, V>,
+        E: OccupiedEntry<'a, K, V>,
+    {
         match self {
             OccupEntry::Stack {
                 index,
@@ -397,10 +528,41 @@ impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: OccupiedEntry<'a
         }
     }
 
-    fn into_mut(self) -> &'a mut V {
+    pub fn into_mut(self) -> &'a mut V
+    where
+        E: OccupiedEntry<'a, K, V>,
+    {
         match self {
             OccupEntry::Stack { value, .. } => unsafe { &mut *value },
             OccupEntry::Heap { entry, .. } => entry.into_mut(),
         }
+    }
+}
+
+impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: OccupiedEntry<'a, K, V>>
+    OccupiedEntry<'a, K, V> for OccupEntry<'a, K, V, N, M, E>
+{
+    fn key(&self) -> &K {
+        self.key()
+    }
+
+    fn get(&self) -> &V {
+        self.get()
+    }
+
+    fn get_mut(&mut self) -> &mut V {
+        self.get_mut()
+    }
+
+    fn insert(&mut self, new_value: V) -> V {
+        self.insert(new_value)
+    }
+
+    fn remove(self) -> V {
+        self.remove()
+    }
+
+    fn into_mut(self) -> &'a mut V {
+        self.into_mut()
     }
 }

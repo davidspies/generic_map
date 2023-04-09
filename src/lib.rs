@@ -1,3 +1,5 @@
+pub use self::rollover_map::RolloverMap;
+
 mod btree_map_impl;
 mod hash_map_impl;
 
