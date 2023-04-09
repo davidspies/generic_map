@@ -38,6 +38,10 @@ impl<K: Eq + Hash, V> GenericMap<K, V> for HashMap<K, V> {
         self.is_empty()
     }
 
+    fn contains_key(&self, key: &K) -> bool {
+        self.contains_key(key)
+    }
+
     fn get(&self, key: &K) -> Option<&V> {
         self.get(key)
     }

@@ -139,6 +139,10 @@ where
         self.stack_keys.is_empty() && self.heap.is_empty()
     }
 
+    fn contains_key(&self, key: &K) -> bool {
+        self.stack_keys.contains(key) || self.heap.contains_key(key)
+    }
+
     fn get(&self, key: &K) -> Option<&V> {
         for (k, v) in self.stack_keys.iter().zip(self.stack_values.iter()) {
             if k == key {
