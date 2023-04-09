@@ -4,6 +4,16 @@ use std::hash::Hash;
 use crate::{Entry, GenericMap, OccupiedEntry, VacantEntry};
 
 impl<K: Eq + Hash, V> GenericMap<K, V> for HashMap<K, V> {
+    type Iter<'a> = hash_map::Iter<'a, K, V>
+    where
+        K: 'a,
+        V: 'a;
+
+    type IterMut<'a> = hash_map::IterMut<'a, K, V>
+    where
+        K: 'a,
+        V: 'a;
+
     type DrainIter<'a> = hash_map::Drain<'a, K, V>
     where
         Self: 'a;
@@ -15,6 +25,18 @@ impl<K: Eq + Hash, V> GenericMap<K, V> for HashMap<K, V> {
     type OccupEntry<'a> = hash_map::OccupiedEntry<'a, K, V>
     where
         Self: 'a;
+
+    fn new() -> Self {
+        Self::new()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
 
     fn get(&self, key: &K) -> Option<&V> {
         self.get(key)
@@ -42,15 +64,31 @@ impl<K: Eq + Hash, V> GenericMap<K, V> for HashMap<K, V> {
             hash_map::Entry::Occupied(o) => Entry::Occupied(o),
         }
     }
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.iter()
+    }
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        self.iter_mut()
+    }
 }
 
 impl<'a, K, V> VacantEntry<'a, K, V> for hash_map::VacantEntry<'a, K, V> {
+    fn key(&self) -> &K {
+        self.key()
+    }
+
     fn insert(self, value: V) -> &'a mut V {
         self.insert(value)
     }
 }
 
 impl<'a, K, V> OccupiedEntry<'a, K, V> for hash_map::OccupiedEntry<'a, K, V> {
+    fn key(&self) -> &K {
+        self.key()
+    }
+
     fn insert(&mut self, value: V) -> V {
         self.insert(value)
     }
