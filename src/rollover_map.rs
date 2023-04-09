@@ -623,6 +623,41 @@ impl<'a, K, V, const N: usize, M, E> OccupEntry<'a, K, V, N, M, E> {
             OccupEntry::Heap { entry, .. } => entry.into_mut(),
         }
     }
+
+    pub fn remove_clearable(self)
+    where
+        V: Clear,
+        M: GenericMap<K, V>,
+        E: OccupiedEntry<'a, K, V>,
+    {
+        match self {
+            OccupEntry::Stack {
+                index,
+                stack_keys,
+                stack_values,
+                ..
+            } => {
+                stack_keys.remove(index);
+                stack_values[index].clear();
+                stack_values[index..].rotate_left(1);
+            }
+            OccupEntry::Heap {
+                entry,
+                stack_keys,
+                stack_values,
+                heap_ptr,
+            } => {
+                entry.remove_clearable();
+                let heap = unsafe { &mut *heap_ptr };
+                if heap.len() == N {
+                    for ((k, v), val) in heap.drain().zip(stack_values.iter_mut()) {
+                        stack_keys.push(k);
+                        *val = v;
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: OccupiedEntry<'a, K, V>>
@@ -650,5 +685,12 @@ impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: OccupiedEntry<'a
 
     fn into_mut(self) -> &'a mut V {
         self.into_mut()
+    }
+
+    fn remove_clearable(self)
+    where
+        V: Clear,
+    {
+        self.remove_clearable()
     }
 }

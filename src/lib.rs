@@ -80,4 +80,11 @@ pub trait OccupiedEntry<'a, K, V> {
     fn get(&self) -> &V;
     fn get_mut(&mut self) -> &mut V;
     fn into_mut(self) -> &'a mut V;
+    fn remove_clearable(self)
+    where
+        V: Clear,
+        Self: Sized,
+    {
+        self.remove();
+    }
 }
