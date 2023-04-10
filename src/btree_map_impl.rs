@@ -3,7 +3,9 @@ use std::mem;
 
 use crate::{Entry, GenericMap, OccupiedEntry, VacantEntry};
 
-impl<K: Ord, V> GenericMap<K, V> for BTreeMap<K, V> {
+impl<K: Ord, V> GenericMap for BTreeMap<K, V> {
+    type K = K;
+    type V = V;
     type Iter<'a> = btree_map::Iter<'a, K, V>
     where
         K: 'a,

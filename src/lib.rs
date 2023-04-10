@@ -12,47 +12,54 @@ pub mod drain;
 pub mod hashed_heap;
 pub mod rollover_map;
 
-pub trait GenericMap<K, V>: Default + Extend<(K, V)> + IntoIterator<Item = (K, V)> {
-    type Iter<'a>: Iterator<Item = (&'a K, &'a V)>
+pub trait GenericMap:
+    Default + Extend<(Self::K, Self::V)> + IntoIterator<Item = (Self::K, Self::V)>
+{
+    type K;
+    type V;
+    type Iter<'a>: Iterator<Item = (&'a Self::K, &'a Self::V)>
     where
-        K: 'a,
-        V: 'a,
+        Self::K: 'a,
+        Self::V: 'a,
         Self: 'a;
-    type IterMut<'a>: Iterator<Item = (&'a K, &'a mut V)>
+    type IterMut<'a>: Iterator<Item = (&'a Self::K, &'a mut Self::V)>
     where
-        K: 'a,
-        V: 'a,
+        Self::K: 'a,
+        Self::V: 'a,
         Self: 'a;
-    type DrainIter<'a>: Iterator<Item = (K, V)>
-    where
-        Self: 'a;
-    type VacEntry<'a>: VacantEntry<'a, K, V>
+    type DrainIter<'a>: Iterator<Item = (Self::K, Self::V)>
     where
         Self: 'a;
-    type OccupEntry<'a>: OccupiedEntry<'a, K, V>
+    type VacEntry<'a>: VacantEntry<'a, Self::K, Self::V>
+    where
+        Self: 'a;
+    type OccupEntry<'a>: OccupiedEntry<'a, Self::K, Self::V>
     where
         Self: 'a;
 
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
-    fn contains_key(&self, key: &K) -> bool;
-    fn get(&self, key: &K) -> Option<&V>;
-    fn get_mut(&mut self, key: &K) -> Option<&mut V>;
-    fn insert(&mut self, key: K, value: V) -> Option<V>;
-    fn remove(&mut self, key: &K) -> Option<V>;
+    fn contains_key(&self, key: &Self::K) -> bool;
+    fn get(&self, key: &Self::K) -> Option<&Self::V>;
+    fn get_mut(&mut self, key: &Self::K) -> Option<&mut Self::V>;
+    fn insert(&mut self, key: Self::K, value: Self::V) -> Option<Self::V>;
+    fn remove(&mut self, key: &Self::K) -> Option<Self::V>;
     fn drain(&mut self) -> Self::DrainIter<'_>;
-    fn entry(&mut self, key: K) -> Entry<Self::VacEntry<'_>, Self::OccupEntry<'_>>;
+    fn entry(&mut self, key: Self::K) -> Entry<Self::VacEntry<'_>, Self::OccupEntry<'_>>;
     fn iter(&self) -> Self::Iter<'_>;
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
-    fn remove_clearable(&mut self, key: &K) -> bool
+    fn remove_clearable(&mut self, key: &Self::K) -> bool
     where
-        V: Clear,
+        Self::V: Clear,
     {
         self.remove(key).is_some()
     }
-    fn drain_or_remove(&mut self, key: &K) -> Option<DrainOrRemove<V::Output<'_>, V>>
+    fn drain_or_remove(
+        &mut self,
+        key: &Self::K,
+    ) -> Option<DrainOrRemove<<Self::V as Drain>::Output<'_>, Self::V>>
     where
-        V: Drain,
+        Self::V: Drain,
     {
         self.remove(key).map(DrainOrRemove::Removed)
     }

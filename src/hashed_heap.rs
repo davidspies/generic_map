@@ -192,7 +192,9 @@ pub type IterMut<'a, K, V> = iter::Map<
 pub type DrainIter<'a, K, V> =
     iter::Map<hash_map::Drain<'a, K, (V, Index)>, fn((K, (V, Index))) -> (K, V)>;
 
-impl<K: Eq + Hash + Clone, V, C: Comparator<K>> GenericMap<K, V> for HashedHeap<K, V, C> {
+impl<K: Eq + Hash + Clone, V, C: Comparator<K>> GenericMap for HashedHeap<K, V, C> {
+    type K = K;
+    type V = V;
     type Iter<'a> = Iter<'a, K, V>
     where
         K: 'a,

@@ -45,7 +45,7 @@ impl<K, V: Clear, const N: usize, M: Clear> Clear for RolloverMap<K, V, N, M> {
     }
 }
 
-impl<K, V: Default, const N: usize, M: GenericMap<K, V>> Drain for RolloverMap<K, V, N, M> {
+impl<K, V: Default, const N: usize, M: GenericMap<K = K, V = V>> Drain for RolloverMap<K, V, N, M> {
     type Output<'a> = DrainIter<'a, K, V, N, M::DrainIter<'a>>
     where
         Self: 'a;
@@ -76,7 +76,7 @@ pub type IterMut<'a, K, V, I> =
 pub type DrainIter<'a, K, V, const N: usize, I> =
     iter::Chain<iter::Zip<arrayvec::Drain<'a, K, N>, TakeIter<'a, V>>, I>;
 
-impl<'a, K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> IntoIterator
+impl<'a, K: Eq, V: Default, const N: usize, M: GenericMap<K = K, V = V>> IntoIterator
     for &'a RolloverMap<K, V, N, M>
 where
     [V; N]: Default,
@@ -89,7 +89,7 @@ where
     }
 }
 
-impl<'a, K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> IntoIterator
+impl<'a, K: Eq, V: Default, const N: usize, M: GenericMap<K = K, V = V>> IntoIterator
     for &'a mut RolloverMap<K, V, N, M>
 where
     [V; N]: Default,
@@ -102,7 +102,7 @@ where
     }
 }
 
-impl<K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> Extend<(K, V)>
+impl<K: Eq, V: Default, const N: usize, M: GenericMap<K = K, V = V>> Extend<(K, V)>
     for RolloverMap<K, V, N, M>
 {
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
@@ -137,14 +137,14 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
 
     pub fn len(&self) -> usize
     where
-        M: GenericMap<K, V>,
+        M: GenericMap,
     {
         self.stack_keys.len() + self.heap.len()
     }
 
     pub fn is_empty(&self) -> bool
     where
-        M: GenericMap<K, V>,
+        M: GenericMap,
     {
         self.stack_keys.is_empty() && self.heap.is_empty()
     }
@@ -152,7 +152,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     pub fn contains_key(&self, key: &K) -> bool
     where
         K: PartialEq,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K>,
     {
         self.stack_keys.contains(key) || self.heap.contains_key(key)
     }
@@ -160,7 +160,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     pub fn get(&self, key: &K) -> Option<&V>
     where
         K: PartialEq,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
     {
         for (k, v) in self.stack_keys.iter().zip(self.stack_values.iter()) {
             if k == key {
@@ -173,7 +173,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     pub fn get_mut(&mut self, key: &K) -> Option<&mut V>
     where
         K: PartialEq,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
     {
         for (k, v) in self.stack_keys.iter().zip(self.stack_values.iter_mut()) {
             if k == key {
@@ -187,7 +187,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     where
         K: PartialEq,
         V: Default,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
     {
         for (k, v) in self.stack_keys.iter_mut().zip(self.stack_values.iter_mut()) {
             if k == &key {
@@ -215,7 +215,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     where
         K: PartialEq,
         V: Default,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
     {
         for (i, (k, v)) in self
             .stack_keys
@@ -242,7 +242,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
 
     pub fn drain(&mut self) -> DrainIter<'_, K, V, N, M::DrainIter<'_>>
     where
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
         V: Default,
     {
         let nelems = self.stack_keys.len();
@@ -261,7 +261,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     >
     where
         K: PartialEq,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K>,
     {
         for (i, (k, v)) in self
             .stack_keys
@@ -301,7 +301,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
 
     pub fn iter(&self) -> Iter<'_, K, V, M::Iter<'_>>
     where
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
     {
         self.stack_keys
             .iter()
@@ -311,7 +311,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
 
     pub fn iter_mut(&mut self) -> IterMut<'_, K, V, M::IterMut<'_>>
     where
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
     {
         self.stack_keys
             .iter()
@@ -323,7 +323,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     where
         K: PartialEq,
         V: Clear,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
     {
         for (i, (k, v)) in self
             .stack_keys
@@ -352,7 +352,7 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     where
         K: Eq,
         V: Drain,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
     {
         for (i, k) in self.stack_keys.iter().enumerate() {
             if k == key {
@@ -373,11 +373,13 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
     }
 }
 
-impl<K: Eq, V: Default, const N: usize, M: GenericMap<K, V>> GenericMap<K, V>
+impl<K: Eq, V: Default, const N: usize, M: GenericMap<K = K, V = V>> GenericMap
     for RolloverMap<K, V, N, M>
 where
     [V; N]: Default,
 {
+    type K = K;
+    type V = V;
     type Iter<'a> = Iter<'a, K, V, M::Iter<'a>>
     where
         Self: 'a;
@@ -481,7 +483,7 @@ impl<'a, K, V, const N: usize, M, E> VacEntry<'a, K, V, N, M, E> {
     pub fn insert(self, value: V) -> &'a mut V
     where
         V: Default,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
         E: VacantEntry<'a, K, V>,
     {
         match self {
@@ -513,7 +515,7 @@ impl<'a, K, V, const N: usize, M, E> VacEntry<'a, K, V, N, M, E> {
     }
 }
 
-impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: VacantEntry<'a, K, V>>
+impl<'a, K, V: Default, const N: usize, M: GenericMap<K = K, V = V>, E: VacantEntry<'a, K, V>>
     VacantEntry<'a, K, V> for VacEntry<'a, K, V, N, M, E>
 {
     fn key(&self) -> &K {
@@ -585,7 +587,7 @@ impl<'a, K, V, const N: usize, M, E> OccupEntry<'a, K, V, N, M, E> {
     pub fn remove(self) -> V
     where
         V: Default,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
         E: OccupiedEntry<'a, K, V>,
     {
         match self {
@@ -632,7 +634,7 @@ impl<'a, K, V, const N: usize, M, E> OccupEntry<'a, K, V, N, M, E> {
     pub fn remove_clearable(self)
     where
         V: Clear,
-        M: GenericMap<K, V>,
+        M: GenericMap<K = K, V = V>,
         E: OccupiedEntry<'a, K, V>,
     {
         match self {
@@ -665,8 +667,11 @@ impl<'a, K, V, const N: usize, M, E> OccupEntry<'a, K, V, N, M, E> {
     }
 }
 
-impl<'a, K, V: Default, const N: usize, M: GenericMap<K, V>, E: OccupiedEntry<'a, K, V>>
-    OccupiedEntry<'a, K, V> for OccupEntry<'a, K, V, N, M, E>
+impl<'a, K, V, const N: usize, M, E> OccupiedEntry<'a, K, V> for OccupEntry<'a, K, V, N, M, E>
+where
+    V: Default,
+    M: GenericMap<K = K, V = V>,
+    E: OccupiedEntry<'a, K, V>,
 {
     fn key(&self) -> &K {
         self.key()

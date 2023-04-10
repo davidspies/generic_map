@@ -3,7 +3,9 @@ use std::hash::{BuildHasher, Hash};
 
 use crate::{Entry, GenericMap, OccupiedEntry, VacantEntry};
 
-impl<K: Eq + Hash, V, S: BuildHasher + Default> GenericMap<K, V> for HashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher + Default> GenericMap for HashMap<K, V, S> {
+    type K = K;
+    type V = V;
     type Iter<'a> = hash_map::Iter<'a, K, V>
     where
         K: 'a,
