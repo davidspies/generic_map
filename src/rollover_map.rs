@@ -10,6 +10,7 @@ use self::take_iter::TakeIter;
 
 mod take_iter;
 
+#[derive(Debug)]
 pub struct RolloverMap<K, V, const N: usize = 1, M = HashMap<K, V>> {
     stack_keys: ArrayVec<K, N>,
     stack_values: [V; N],
