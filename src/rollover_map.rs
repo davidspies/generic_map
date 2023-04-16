@@ -2,13 +2,16 @@ use std::{array, collections::HashMap, iter, mem, slice};
 
 use arrayvec::ArrayVec;
 
-use crate::{
-    clear::Clear, drain::Drain, DrainOrRemove, Entry, GenericMap, OccupiedEntry, VacantEntry,
-};
+use crate::{clear::Clear, drain::Drain, DrainOrRemove, Entry, GenericMap};
 
 use self::take_iter::TakeIter;
 
+pub use self::occup_entry::OccupEntry;
+pub use self::vac_entry::VacEntry;
+
+mod occup_entry;
 mod take_iter;
+mod vac_entry;
 
 #[derive(Debug)]
 pub struct RolloverMap<K, V, const N: usize = 1, M = HashMap<K, V>> {
@@ -271,31 +274,24 @@ impl<K, V, const N: usize, M> RolloverMap<K, V, N, M> {
             .enumerate()
         {
             if k == &key {
-                return Entry::Occupied(OccupEntry::Stack {
-                    index: i,
-                    key: k,
-                    value: v,
-                    stack_keys: &mut self.stack_keys,
-                    stack_values: &mut self.stack_values,
+                return Entry::Occupied(unsafe {
+                    OccupEntry::stack(i, k, v, &mut self.stack_keys, &mut self.stack_values)
                 });
             }
         }
         if self.heap.is_empty() {
-            return Entry::Vacant(VacEntry::Stack {
+            return Entry::Vacant(VacEntry::stack(
                 key,
-                stack_keys: &mut self.stack_keys,
-                stack_values: &mut self.stack_values,
-                heap: &mut self.heap,
-            });
+                &mut self.stack_keys,
+                &mut self.stack_values,
+                &mut self.heap,
+            ));
         }
         let heap_ptr = &mut self.heap as *mut M;
         match self.heap.entry(key) {
-            Entry::Vacant(v) => Entry::Vacant(VacEntry::Heap(v)),
-            Entry::Occupied(o) => Entry::Occupied(OccupEntry::Heap {
-                heap_ptr,
-                entry: o,
-                stack_keys: &mut self.stack_keys,
-                stack_values: &mut self.stack_values,
+            Entry::Vacant(v) => Entry::Vacant(VacEntry::heap(v)),
+            Entry::Occupied(o) => Entry::Occupied(unsafe {
+                OccupEntry::heap(heap_ptr, o, &mut self.stack_keys, &mut self.stack_values)
             }),
         }
     }
@@ -457,252 +453,6 @@ where
         V: Drain,
     {
         self.drain_or_remove(key)
-    }
-}
-
-pub enum VacEntry<'a, K, V, const N: usize, M, E> {
-    Stack {
-        key: K,
-        stack_keys: &'a mut ArrayVec<K, N>,
-        stack_values: &'a mut [V],
-        heap: &'a mut M,
-    },
-    Heap(E),
-}
-
-impl<'a, K, V, const N: usize, M, E> VacEntry<'a, K, V, N, M, E> {
-    pub fn key(&self) -> &K
-    where
-        E: VacantEntry<'a, K, V>,
-    {
-        match self {
-            VacEntry::Stack { key, .. } => key,
-            VacEntry::Heap(entry) => entry.key(),
-        }
-    }
-
-    pub fn insert(self, value: V) -> &'a mut V
-    where
-        V: Default,
-        M: GenericMap<K = K, V = V>,
-        E: VacantEntry<'a, K, V>,
-    {
-        match self {
-            VacEntry::Stack {
-                key,
-                stack_keys,
-                stack_values,
-                heap,
-            } => {
-                if stack_keys.len() < N {
-                    stack_keys.push(key);
-                    let v = &mut stack_values[stack_keys.len() - 1];
-                    *v = value;
-                    v
-                } else {
-                    heap.extend(
-                        stack_keys
-                            .drain(..)
-                            .zip(stack_values.iter_mut().map(mem::take)),
-                    );
-                    match heap.entry(key) {
-                        Entry::Vacant(vac) => vac.insert(value),
-                        Entry::Occupied(_) => panic!("Bad map implementation"),
-                    }
-                }
-            }
-            VacEntry::Heap(entry) => entry.insert(value),
-        }
-    }
-}
-
-impl<'a, K, V: Default, const N: usize, M: GenericMap<K = K, V = V>, E: VacantEntry<'a, K, V>>
-    VacantEntry<'a, K, V> for VacEntry<'a, K, V, N, M, E>
-{
-    fn key(&self) -> &K {
-        self.key()
-    }
-
-    fn insert(self, value: V) -> &'a mut V {
-        self.insert(value)
-    }
-}
-
-pub enum OccupEntry<'a, K, V, const N: usize, M, E> {
-    Stack {
-        index: usize,
-        stack_keys: &'a mut ArrayVec<K, N>,
-        stack_values: &'a mut [V],
-        key: *const K,
-        value: *mut V,
-    },
-    Heap {
-        entry: E,
-        stack_keys: &'a mut ArrayVec<K, N>,
-        stack_values: &'a mut [V],
-        heap_ptr: *mut M,
-    },
-}
-
-impl<'a, K, V, const N: usize, M, E> OccupEntry<'a, K, V, N, M, E> {
-    pub fn key(&self) -> &K
-    where
-        E: OccupiedEntry<'a, K, V>,
-    {
-        match self {
-            OccupEntry::Stack { key, .. } => unsafe { &**key },
-            OccupEntry::Heap { entry, .. } => entry.key(),
-        }
-    }
-
-    pub fn get(&self) -> &V
-    where
-        E: OccupiedEntry<'a, K, V>,
-    {
-        match self {
-            OccupEntry::Stack { value, .. } => unsafe { &**value },
-            OccupEntry::Heap { entry, .. } => entry.get(),
-        }
-    }
-
-    pub fn get_mut(&mut self) -> &mut V
-    where
-        E: OccupiedEntry<'a, K, V>,
-    {
-        match self {
-            OccupEntry::Stack { value, .. } => unsafe { &mut **value },
-            OccupEntry::Heap { entry, .. } => entry.get_mut(),
-        }
-    }
-
-    pub fn insert(&mut self, new_value: V) -> V
-    where
-        E: OccupiedEntry<'a, K, V>,
-    {
-        match self {
-            OccupEntry::Stack { value, .. } => unsafe { mem::replace(&mut **value, new_value) },
-            OccupEntry::Heap { entry, .. } => entry.insert(new_value),
-        }
-    }
-
-    pub fn remove(self) -> V
-    where
-        V: Default,
-        M: GenericMap<K = K, V = V>,
-        E: OccupiedEntry<'a, K, V>,
-    {
-        match self {
-            OccupEntry::Stack {
-                index,
-                stack_keys,
-                stack_values,
-                ..
-            } => {
-                stack_keys.remove(index);
-                let result = mem::take(&mut stack_values[index]);
-                stack_values[index..].rotate_left(1);
-                result
-            }
-            OccupEntry::Heap {
-                entry,
-                stack_keys,
-                stack_values,
-                heap_ptr,
-            } => {
-                let result = entry.remove();
-                let heap = unsafe { &mut *heap_ptr };
-                if heap.len() == N {
-                    for ((k, v), val) in heap.drain().zip(stack_values.iter_mut()) {
-                        stack_keys.push(k);
-                        *val = v;
-                    }
-                }
-                result
-            }
-        }
-    }
-
-    pub fn into_mut(self) -> &'a mut V
-    where
-        E: OccupiedEntry<'a, K, V>,
-    {
-        match self {
-            OccupEntry::Stack { value, .. } => unsafe { &mut *value },
-            OccupEntry::Heap { entry, .. } => entry.into_mut(),
-        }
-    }
-
-    pub fn remove_clearable(self)
-    where
-        V: Clear,
-        M: GenericMap<K = K, V = V>,
-        E: OccupiedEntry<'a, K, V>,
-    {
-        match self {
-            OccupEntry::Stack {
-                index,
-                stack_keys,
-                stack_values,
-                ..
-            } => {
-                stack_keys.remove(index);
-                stack_values[index].clear();
-                stack_values[index..].rotate_left(1);
-            }
-            OccupEntry::Heap {
-                entry,
-                stack_keys,
-                stack_values,
-                heap_ptr,
-            } => {
-                entry.remove_clearable();
-                let heap = unsafe { &mut *heap_ptr };
-                if heap.len() == N {
-                    for ((k, v), val) in heap.drain().zip(stack_values.iter_mut()) {
-                        stack_keys.push(k);
-                        *val = v;
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl<'a, K, V, const N: usize, M, E> OccupiedEntry<'a, K, V> for OccupEntry<'a, K, V, N, M, E>
-where
-    V: Default,
-    M: GenericMap<K = K, V = V>,
-    E: OccupiedEntry<'a, K, V>,
-{
-    fn key(&self) -> &K {
-        self.key()
-    }
-
-    fn get(&self) -> &V {
-        self.get()
-    }
-
-    fn get_mut(&mut self) -> &mut V {
-        self.get_mut()
-    }
-
-    fn insert(&mut self, new_value: V) -> V {
-        self.insert(new_value)
-    }
-
-    fn remove(self) -> V {
-        self.remove()
-    }
-
-    fn into_mut(self) -> &'a mut V {
-        self.into_mut()
-    }
-
-    fn remove_clearable(self)
-    where
-        V: Clear,
-    {
-        self.remove_clearable()
     }
 }
 
