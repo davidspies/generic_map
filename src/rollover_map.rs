@@ -707,13 +707,13 @@ where
 }
 
 impl<K: Ord, V, const N: usize> RolloverHashedMaxHeap<K, V, N> {
-    pub fn max(&self) -> Option<&K> {
+    pub fn max_key(&self) -> Option<&K> {
         self.heap.max_key().or_else(|| self.stack_keys.iter().max())
     }
 }
 
 impl<K: Ord, V, const N: usize> RolloverHashedMinHeap<K, V, N> {
-    pub fn min(&self) -> Option<&K> {
+    pub fn min_key(&self) -> Option<&K> {
         self.heap.min_key().or_else(|| self.stack_keys.iter().min())
     }
 }
