@@ -17,9 +17,9 @@ pub struct RolloverMap<K, V, const N: usize = 1, M = HashMap<K, V>> {
     heap: M,
 }
 
-pub type RolloverHashedMaxHeap<K, V, const N: usize> =
+pub type RolloverHashedMaxHeap<K, V, const N: usize = 1> =
     RolloverMap<K, V, N, crate::hashed_heap::HashedMaxHeap<K, V>>;
-pub type RolloverHashedMinHeap<K, V, const N: usize> =
+pub type RolloverHashedMinHeap<K, V, const N: usize = 1> =
     RolloverMap<K, V, N, crate::hashed_heap::HashedMinHeap<K, V>>;
 
 impl<K, V, const N: usize, M: Default> Default for RolloverMap<K, V, N, M>
