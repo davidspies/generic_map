@@ -16,21 +16,22 @@ impl<T> Default for Min<T> {
 
 pub trait Comparator<T>: Default {
     fn favors(&self, a: &T, b: &T) -> bool;
+    fn favored<'a>(&self, a: &'a T, b: &'a T) -> &'a T {
+        if self.favors(b, a) {
+            b
+        } else {
+            a
+        }
+    }
 }
 
-impl<T> Comparator<T> for Max<T>
-where
-    T: PartialOrd,
-{
+impl<T: PartialOrd> Comparator<T> for Max<T> {
     fn favors(&self, a: &T, b: &T) -> bool {
         a > b
     }
 }
 
-impl<T> Comparator<T> for Min<T>
-where
-    T: PartialOrd,
-{
+impl<T: PartialOrd> Comparator<T> for Min<T> {
     fn favors(&self, a: &T, b: &T) -> bool {
         a < b
     }

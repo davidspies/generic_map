@@ -11,9 +11,10 @@ use self::indexed_heap::{Index, IndexedHeap};
 
 pub use self::entry::{Entry, OccupEntry, VacEntry};
 
-mod comparator;
 mod entry;
 mod indexed_heap;
+
+pub mod comparator;
 
 pub struct HashedHeap<K, V, C> {
     map: HashMap<K, (V, Index)>,
@@ -25,13 +26,13 @@ pub type HashedMinHeap<K, V> = HashedHeap<K, V, Min<K>>;
 
 impl<K, V> HashedMaxHeap<K, V> {
     pub fn max_key(&self) -> Option<&K> {
-        self.peek()
+        self.top_key()
     }
 }
 
 impl<K, V> HashedMinHeap<K, V> {
     pub fn min_key(&self) -> Option<&K> {
-        self.peek()
+        self.top_key()
     }
 }
 
@@ -135,7 +136,7 @@ impl<K, V, C> HashedHeap<K, V, C> {
         self.map.iter_mut().map(|(k, (v, _))| (k, v))
     }
 
-    fn peek(&self) -> Option<&K> {
+    pub fn top_key(&self) -> Option<&K> {
         self.heap.peek()
     }
 }

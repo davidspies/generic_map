@@ -2,6 +2,7 @@ use std::{array, collections::HashMap, iter, mem, slice};
 
 use arrayvec::ArrayVec;
 
+use crate::hashed_heap::comparator::{self, Comparator};
 use crate::{clear::Clear, drain::Drain, DrainOrRemove, Entry, GenericMap};
 
 use self::take_iter::TakeIter;
@@ -20,10 +21,12 @@ pub struct RolloverMap<K, V, const N: usize = 1, M = HashMap<K, V>> {
     heap: M,
 }
 
+pub type RolloverHashedOptHeap<K, V, O, const N: usize = 1> =
+    RolloverMap<K, V, N, crate::hashed_heap::HashedHeap<K, V, O>>;
 pub type RolloverHashedMaxHeap<K, V, const N: usize = 1> =
-    RolloverMap<K, V, N, crate::hashed_heap::HashedMaxHeap<K, V>>;
+    RolloverHashedOptHeap<K, V, comparator::Max<K>, N>;
 pub type RolloverHashedMinHeap<K, V, const N: usize = 1> =
-    RolloverMap<K, V, N, crate::hashed_heap::HashedMinHeap<K, V>>;
+    RolloverHashedOptHeap<K, V, comparator::Min<K>, N>;
 
 impl<K, V, const N: usize, M: Default> Default for RolloverMap<K, V, N, M>
 where
@@ -453,6 +456,17 @@ where
         V: Drain,
     {
         self.drain_or_remove(key)
+    }
+}
+
+impl<K, V, C: Comparator<K>, const N: usize> RolloverHashedOptHeap<K, V, C, N> {
+    pub fn top_key(&self) -> Option<&K> {
+        self.heap.top_key().or_else(|| {
+            let comparator = C::default();
+            self.stack_keys
+                .iter()
+                .reduce(|a, b| comparator.favored(a, b))
+        })
     }
 }
 
